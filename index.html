@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="My Cycle">
+<meta name="theme-color" content="#FBF6F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171015" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>My Cycle</title>
+<style>
+:root{
+  --paper:#FBF6F7; --surface:#FFFFFF; --ink:#2B1B2E; --muted:#86727F; --line:#EFE4E8; --track:#F3E8EC;
+  --period:#D6336C; --period-soft:#FBE1EA; --fertile:#7CCBC8; --fertile-soft:#DDF2F1; --ovul:#1F7F86;
+  --good:#2F7A50; --good-bg:#E2F3E8; --warn:#B4442B; --warn-bg:#FBE7E1;
+  --radius-l:28px; --radius-m:18px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#171015; --surface:#22171F; --ink:#F5ECF1; --muted:#A8949F; --line:#34262F; --track:#2F222A;
+    --period:#F0577F; --period-soft:#47202F; --fertile:#4FA9A6; --fertile-soft:#1C3534; --ovul:#7FD6D9;
+    --good:#86D6A6; --good-bg:#1C3125; --warn:#F2937B; --warn-bg:#3A221C;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:ui-rounded,"SF Pro Rounded","Nunito",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px; line-height:1.45; -webkit-tap-highlight-color:transparent; -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--period);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* ---------- Structure ---------- */
+.app{display:flex;flex-direction:column;height:100%}
+header{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:calc(env(safe-area-inset-top,0px) + 12px) 20px 8px;
+}
+header h1{margin:0;font-size:1.35rem;font-weight:700;letter-spacing:-.01em}
+.sync{
+  display:flex;align-items:center;gap:8px;border:0;background:var(--surface);
+  padding:7px 12px;border-radius:999px;font-size:.82rem;color:var(--muted);box-shadow:0 0 0 1px var(--line);
+}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--good)}
+.sync.busy i{background:var(--fertile);animation:pulse 1s infinite alternate}
+.sync.pending i{background:#E0A23B}
+.sync.err i{background:var(--warn)}
+@keyframes pulse{to{opacity:.3}}
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px 28px}
+.view{max-width:560px;margin:0 auto}
+nav{
+  display:flex;background:var(--surface);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+nav button{
+  flex:1;border:0;background:none;padding:10px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:.75rem;color:var(--muted);min-height:56px;
+}
+nav button svg{width:24px;height:24px}
+nav button[aria-current="page"]{color:var(--period);font-weight:600}
+
+/* ---------- Cadran ---------- */
+.hero{position:relative;display:grid;place-items:center;margin:4px auto 6px;width:min(78vw,300px);aspect-ratio:1}
+.dial{position:absolute;inset:0;width:100%;height:100%}
+.hero-text{position:relative;text-align:center;padding:0 18%}
+.hero-big{font-size:clamp(2.4rem,12vw,3.4rem);font-weight:700;line-height:1;letter-spacing:-.03em}
+.hero-small{font-size:1rem;color:var(--muted);margin-top:4px}
+.hero-sub{text-align:center;color:var(--muted);font-size:.92rem;margin:0 0 18px;min-height:1.4em}
+.hero-welcome .hero-big{font-size:1.6rem;letter-spacing:-.01em}
+
+/* ---------- Calendrier ---------- */
+.panel{background:var(--surface);border-radius:var(--radius-l);padding:16px 14px 18px;box-shadow:0 0 0 1px var(--line)}
+.month{display:flex;align-items:center;justify-content:space-between;margin:0 2px 12px}
+.month h2{margin:0;font-size:1.08rem;font-weight:650;text-transform:capitalize}
+.month .navs{display:flex;gap:6px}
+.icon-btn{border:0;background:var(--paper);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:1.2rem}
+.today-btn{border:0;background:var(--period-soft);color:var(--period);padding:0 14px;height:40px;border-radius:20px;font-size:.85rem;font-weight:600}
+.wk,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wk span{text-align:center;font-size:.75rem;color:var(--muted);padding-bottom:4px}
+.d{
+  aspect-ratio:1;min-height:38px;border:2px solid transparent;background:none;border-radius:50%;
+  display:grid;place-items:center;padding:0;font-size:.95rem;position:relative;font-variant-numeric:tabular-nums;
+}
+.d.period{background:var(--period);color:#fff;font-weight:650}
+.d.fertile{background:var(--fertile-soft)}
+.d.ovul{background:var(--ovul);color:var(--surface);font-weight:650}
+.d.pred.period{background:none;color:var(--period);border:2px dashed var(--period)}
+.d.pred.fertile{background:none;border:2px dashed var(--fertile)}
+.d.pred.ovul{background:none;color:var(--ovul);border:2px dashed var(--ovul)}
+.d.today::after{content:"";position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:currentColor}
+.d.sel{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
+.d.future:not(.period):not(.ovul){color:var(--muted)}
+.d.future.pred.period{color:var(--period)} .d.future.pred.ovul{color:var(--ovul)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;margin-top:14px;font-size:.78rem;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend b{width:12px;height:12px;border-radius:50%;display:inline-block}
+.sel-info{margin:16px 4px 10px;font-size:.95rem}
+.sel-info::first-letter{text-transform:uppercase}
+
+.primary,.secondary,.danger{
+  width:100%;border:0;border-radius:999px;min-height:52px;padding:14px 18px;font-weight:650;font-size:1rem;
+}
+.primary{background:var(--period);color:#fff}
+.primary:disabled{background:var(--track);color:var(--muted);cursor:default}
+.secondary{background:var(--ink);color:var(--paper)}
+.ghost{width:100%;border:0;border-radius:999px;min-height:48px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);font-weight:600}
+.danger{background:var(--warn-bg);color:var(--warn)}
+
+/* ---------- Analyses ---------- */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.tile{background:var(--surface);border-radius:var(--radius-m);padding:14px;box-shadow:0 0 0 1px var(--line)}
+.tile p{margin:0}
+.tile .l{font-size:.8rem;color:var(--muted)}
+.tile .v{font-size:1.45rem;font-weight:700;letter-spacing:-.02em;margin:2px 0 6px}
+.chip{display:inline-block;font-size:.74rem;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--track);color:var(--muted)}
+.chip.good{background:var(--good-bg);color:var(--good)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.section-t{display:flex;justify-content:space-between;align-items:baseline;margin:22px 4px 10px}
+.section-t h2{margin:0;font-size:1.08rem}
+.link{border:0;background:none;color:var(--period);font-weight:600;font-size:.9rem;padding:6px}
+.hist{background:var(--surface);border-radius:var(--radius-m);box-shadow:0 0 0 1px var(--line);padding:4px 14px}
+.h-item{padding:14px 0;border-bottom:1px solid var(--line)}
+.h-item:last-child{border-bottom:0}
+.h-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.h-title{font-weight:650}
+.h-dates{font-size:.84rem;color:var(--muted);margin:2px 0 8px}
+.h-note{font-size:.85rem;color:var(--muted);margin:8px 0 0;font-style:italic}
+.dots{display:flex;flex-wrap:wrap;gap:3px}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--track)}
+.dots i.p{background:var(--period)} .dots i.f{background:var(--fertile)} .dots i.o{background:var(--ovul)}
+.chart{width:100%;height:auto;display:block}
+.chart .ax{font-size:10px;fill:var(--muted)}
+.chart .val{font-size:10px;font-weight:700;fill:var(--ink)}
+.chart-box{background:var(--surface);border-radius:var(--radius-m);box-shadow:0 0 0 1px var(--line);padding:14px}
+.note{font-size:.8rem;color:var(--muted);margin:10px 4px 0}
+.empty{color:var(--muted);text-align:center;padding:24px 8px;margin:0}
+
+/* ---------- Réglages ---------- */
+.set-list{display:flex;flex-direction:column;gap:10px}
+.set-card{background:var(--surface);border-radius:var(--radius-m);box-shadow:0 0 0 1px var(--line);padding:16px}
+.set-card h3{margin:0 0 4px;font-size:1rem}
+.set-card p{margin:0 0 12px;font-size:.88rem;color:var(--muted)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.88rem;margin-bottom:12px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;word-break:break-all}
+
+/* ---------- Feuille de saisie ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(20,8,16,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.sheet{
+  background:var(--surface);width:100%;max-width:560px;border-radius:var(--radius-l) var(--radius-l) 0 0;
+  padding:18px 20px calc(env(safe-area-inset-bottom,0px) + 20px);max-height:92%;overflow-y:auto;
+  animation:up .22s ease-out;
+}
+@keyframes up{from{transform:translateY(40px);opacity:.4}}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.sheet-head h2{margin:0;font-size:1.2rem}
+.sheet label,.sheet .lab{display:block;font-size:.85rem;font-weight:600;color:var(--muted);margin:16px 0 8px}
+.sheet input[type=date],.sheet textarea,.setup input{
+  width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--paper);
+  border:1px solid var(--line);border-radius:14px;padding:12px 14px;
+}
+.sheet textarea{resize:vertical;min-height:64px}
+.stepper{display:flex;align-items:center;gap:14px}
+.stepper button{width:48px;height:48px;border-radius:50%;border:0;background:var(--period-soft);color:var(--period);font-size:1.5rem;font-weight:600}
+.stepper output{font-size:1.6rem;font-weight:700;min-width:2ch;text-align:center;font-variant-numeric:tabular-nums}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.seg button{border:0;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);border-radius:12px;min-height:44px;font-size:.88rem;padding:6px 4px}
+.seg button[aria-pressed="true"]{background:var(--period);color:#fff;box-shadow:none;font-weight:650}
+.sheet .actions{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+
+/* ---------- Écran de connexion ---------- */
+.setup{min-height:100%;display:flex;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 28px) 22px calc(env(safe-area-inset-bottom,0px) + 28px);overflow-y:auto}
+.setup-in{width:100%;max-width:420px}
+.setup .logo{width:72px;height:72px;margin-bottom:14px}
+.setup h1{font-size:2rem;margin:0 0 6px;letter-spacing:-.02em}
+.setup .lead{color:var(--muted);margin:0 0 20px}
+.setup label{display:block;font-weight:600;font-size:.9rem;margin:16px 0 6px}
+.setup .small{font-size:.82rem;color:var(--muted);margin:10px 0 18px}
+.hint{background:var(--period-soft);border-radius:var(--radius-m);padding:12px 14px;font-size:.9rem;margin-bottom:8px}
+.msg{min-height:1.4em;margin:14px 0 0;font-size:.9rem}
+.msg.err{color:var(--warn)}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 76px);transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:.9rem;z-index:80;
+  max-width:90vw;text-align:center;
+}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ============ Connexion ============ -->
+<section class="setup" id="setup" hidden>
+  <div class="setup-in">
+    <svg class="logo" viewBox="0 0 72 72" aria-hidden="true"><rect width="72" height="72" rx="18" fill="var(--period)"/><circle cx="36" cy="36" r="19" fill="none" stroke="#fff" stroke-width="7" stroke-dasharray="90 200" stroke-linecap="round" transform="rotate(-90 36 36)"/><circle cx="36" cy="36" r="19" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="7"/><circle cx="36" cy="17" r="5" fill="#fff"/></svg>
+    <h1>My Cycle</h1>
+    <p class="lead">Vos données sont chiffrées sur ce téléphone avant d’être envoyées dans votre Google Sheet. Seul votre mot de passe commun permet de les lire.</p>
+    <div class="hint" id="install-hint" hidden></div>
+    <form id="setup-form" novalidate>
+      <label for="s-url">Adresse du script Google</label>
+      <input id="s-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec">
+      <label for="s-pass">Mot de passe commun</label>
+      <input id="s-pass" type="password" autocomplete="new-password" minlength="10">
+      <label for="s-pass2">Confirmez le mot de passe</label>
+      <input id="s-pass2" type="password" autocomplete="new-password">
+      <p class="small">Au moins 10 caractères. Utilisez exactement le même sur les deux téléphones. S’il est perdu, les données ne pourront plus être lues par personne.</p>
+      <button class="primary" type="submit" id="s-btn">Connecter ce téléphone</button>
+      <p class="msg" id="s-msg" role="status"></p>
+    </form>
+  </div>
+</section>
+
+<!-- ============ Application ============ -->
+<div class="app" id="app" hidden>
+  <header>
+    <h1>My Cycle</h1>
+    <button class="sync" id="sync-pill" type="button"><i></i><span id="sync-text">À jour</span></button>
+  </header>
+
+  <main id="main">
+    <!-- Calendrier -->
+    <section class="view" id="view-cal">
+      <div class="hero" id="hero"></div>
+      <p class="hero-sub" id="hero-sub"></p>
+      <div class="panel">
+        <div class="month">
+          <h2 id="month-title"></h2>
+          <div class="navs">
+            <button class="today-btn" id="btn-today" type="button" hidden>Aujourd’hui</button>
+            <button class="icon-btn" id="btn-prev" type="button" aria-label="Mois précédent">‹</button>
+            <button class="icon-btn" id="btn-next" type="button" aria-label="Mois suivant">›</button>
+          </div>
+        </div>
+        <div class="wk" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+        <div class="grid" id="grid"></div>
+        <div class="legend">
+          <span><b style="background:var(--period)"></b>Règles</span>
+          <span><b style="background:var(--fertile)"></b>Période fertile</span>
+          <span><b style="background:var(--ovul)"></b>Ovulation</span>
+          <span><b style="border:2px dashed var(--muted)"></b>Prévision</span>
+        </div>
+      </div>
+      <p class="sel-info" id="sel-info"></p>
+      <button class="primary" id="btn-log" type="button"></button>
+    </section>
+
+    <!-- Analyses -->
+    <section class="view" id="view-stats" hidden>
+      <div class="tiles" id="tiles"></div>
+      <div class="section-t"><h2>Durée des cycles</h2></div>
+      <div class="chart-box" id="chart"></div>
+      <p class="note">Zone colorée : 21 à 35 jours, la durée habituelle d’un cycle chez l’adulte.</p>
+      <div class="section-t"><h2>Historique</h2><button class="link" id="btn-all" type="button">Tout voir</button></div>
+      <div class="hist" id="hist"></div>
+      <p class="note">Les prévisions sont des estimations basées sur vos cycles passés. Elles ne constituent ni un avis médical ni une méthode de contraception.</p>
+    </section>
+
+    <!-- Réglages -->
+    <section class="view" id="view-set" hidden>
+      <div class="set-list">
+        <div class="set-card">
+          <h3>Synchronisation</h3>
+          <dl class="kv" id="sync-kv"></dl>
+          <button class="ghost" id="btn-sync" type="button">Synchroniser maintenant</button>
+        </div>
+        <div class="set-card">
+          <h3>Importer l’ancienne version</h3>
+          <p>Récupère les cycles saisis dans l’ancienne app (onglet « StartDate » du même Google Sheet), puis les chiffre. Supprimez ensuite cet ancien onglet : il contient les données en clair.</p>
+          <button class="ghost" id="btn-legacy" type="button">Importer les anciens cycles</button>
+        </div>
+        <div class="set-card">
+          <h3>Sauvegarde</h3>
+          <p>Fichier lisible de tous vos cycles, à garder en lieu sûr.</p>
+          <button class="ghost" id="btn-export" type="button">Exporter mes données</button>
+        </div>
+        <div class="set-card">
+          <h3>Ce téléphone</h3>
+          <p>Retire la clé et les données de ce téléphone. Rien n’est effacé dans le Google Sheet ni sur l’autre téléphone.</p>
+          <button class="danger" id="btn-forget" type="button">Oublier ce téléphone</button>
+        </div>
+        <p class="note" id="version"></p>
+      </div>
+    </section>
+  </main>
+
+  <nav>
+    <button type="button" data-tab="cal" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendrier
+    </button>
+    <button type="button" data-tab="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3.5-4 3 2.5L19 8"/></svg>Analyses
+    </button>
+    <button type="button" data-tab="set">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>Réglages
+    </button>
+  </nav>
+</div>
+
+<!-- ============ Feuille de saisie ============ -->
+<div class="sheet-bg" id="sheet" hidden>
+  <form class="sheet" id="form" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="sheet-head">
+      <h2 id="sheet-title">Règles</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Fermer">✕</button>
+    </div>
+    <label for="f-start">Premier jour des règles</label>
+    <input type="date" id="f-start" required>
+    <span class="lab">Durée des saignements</span>
+    <div class="stepper">
+      <button type="button" data-step="-1" aria-label="Un jour de moins">−</button>
+      <output id="f-bleed">5</output><span>jours</span>
+      <button type="button" data-step="1" aria-label="Un jour de plus">+</button>
+    </div>
+    <span class="lab">Flux</span>
+    <div class="seg" data-name="flow"></div>
+    <span class="lab">Douleur</span>
+    <div class="seg" data-name="pain"></div>
+    <label for="f-note">Note</label>
+    <textarea id="f-note" rows="2" maxlength="500" placeholder="Symptômes, humeur, médicaments…"></textarea>
+    <div class="actions">
+      <button class="primary" type="submit">Enregistrer</button>
+      <button class="danger" type="button" id="f-del" hidden>Supprimer ces règles</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+'use strict';
+const VERSION = '2.0.0';
+const DAY = 864e5;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+/* Les dates sont manipulées en « numéros de jour » (UTC) : aucun décalage de fuseau possible. */
+const toNum = s => { const [y, m, d] = s.slice(0, 10).split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / DAY); };
+const toStr = n => new Date(n * DAY).toISOString().slice(0, 10);
+const todayNum = () => { const t = new Date(); return Math.round(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / DAY); };
+const fmt = (n, o) => new Date(n * DAY).toLocaleDateString('fr-FR', { timeZone: 'UTC', ...o });
+const jours = n => `${n} jour${Math.abs(n) > 1 ? 's' : ''}`;
+
+const FLOW = { leger: 'Léger', moyen: 'Moyen', abondant: 'Abondant' };
+const PAIN = { aucune: 'Aucune', legere: 'Légère', moderee: 'Modérée', forte: 'Forte' };
+
+const S = {
+  apiUrl: '', token: '', key: null,
+  rows: {},        // version serveur (chiffrée) : id -> {id, updatedAt, deleted, data}
+  plain: {},       // version déchiffrée : id -> {updatedAt, val}
+  pending: new Set(),
+  lastSync: 0, syncing: false, again: false, error: null, unreadable: 0,
+  month: null, sel: todayNum(), tab: 'cal', form: null, M: null
+};
+
+/* ---------- Stockage local ---------- */
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('mc_' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('mc_' + k, JSON.stringify(v)); } catch {} },
+  clear() { try { Object.keys(localStorage).filter(k => k.startsWith('mc_')).forEach(k => localStorage.removeItem(k)); } catch {} }
+};
+function persist() { LS.set('rows', S.rows); LS.set('pending', [...S.pending]); LS.set('lastSync', S.lastSync); }
+
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('mycycle', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function kv(mode, fn) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('kv', mode); const req = fn(tx.objectStore('kv'));
+    tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error);
+  });
+}
+const kvGet = k => kv('readonly', s => s.get(k));
+const kvSet = (k, v) => kv('readwrite', s => s.put(v, k));
+const kvClear = () => kv('readwrite', s => s.clear());
+
+/* ---------- Chiffrement (AES-256-GCM, clé dérivée par PBKDF2) ---------- */
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => { let s = ''; new Uint8Array(buf).forEach(b => s += String.fromCharCode(b)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const importAes = raw => crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+
+async function deriveKeys(pass, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(pass.normalize('NFC')), 'PBKDF2', false, ['deriveBits']);
+  const bits = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 310000, hash: 'SHA-256' }, base, 512));
+  const raw = bits.slice(0, 32);
+  const token = [...bits.slice(32)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return { key: await importAes(raw), raw, token };
+}
+async function encryptObj(obj, id) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(id) }, S.key, enc.encode(JSON.stringify(obj)));
+  return b64(iv) + '.' + b64(ct);
+}
+async function decryptStr(str, id) {
+  const [iv, ct] = str.split('.');
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv), additionalData: enc.encode(id) }, S.key, unb64(ct));
+  return JSON.parse(dec.decode(pt));
+}
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join(''));
+
+/* ---------- Échanges avec Google Apps Script ---------- */
+async function api(body, url = S.apiUrl) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+  if (!r.ok) throw Object.assign(new Error('HTTP ' + r.status), { code: 'http' });
+  let j; try { j = await r.json(); } catch { throw Object.assign(new Error('Réponse illisible'), { code: 'notjson' }); }
+  if (!j.ok) throw Object.assign(new Error(j.detail || j.error), { code: j.error });
+  return j;
+}
+
+async function sync() {
+  if (!S.token) return;
+  if (S.syncing) { S.again = true; return; }
+  S.syncing = true; renderSync();
+  try {
+    const out = [...S.pending].map(id => S.rows[id]).filter(Boolean);
+    const j = await api({ action: 'sync', token: S.token, entries: out });
+    out.forEach(r => { if (S.rows[r.id] && S.rows[r.id].updatedAt === r.updatedAt) S.pending.delete(r.id); });
+    for (const r of j.rows) {
+      const loc = S.rows[r.id];
+      if (!loc || r.updatedAt > loc.updatedAt) S.rows[r.id] = r;
+    }
+    S.lastSync = Date.now(); S.error = null;
+    persist(); await rebuild(); renderAll();
+  } catch (e) {
+    S.error = e.code === 'unauthorized' ? 'Mot de passe refusé par le script'
+      : !navigator.onLine ? 'Hors ligne' : 'Synchronisation impossible';
+  }
+  S.syncing = false; renderSync();
+  if (S.again) { S.again = false; sync(); }
+}
+
+/* ---------- Données ---------- */
+async function rebuild() {
+  const plain = {}; let bad = 0;
+  for (const r of Object.values(S.rows)) {
+    if (r.deleted || !r.data) continue;
+    const c = S.plain[r.id];
+    if (c && c.updatedAt === r.updatedAt) { plain[r.id] = c; continue; }
+    try { plain[r.id] = { updatedAt: r.updatedAt, val: await decryptStr(r.data, r.id) }; } catch { bad++; }
+  }
+  S.plain = plain; S.unreadable = bad; computeModel();
+}
+
+async function putEntry(id, val) {
+  const updatedAt = Date.now();
+  S.rows[id] = { id, updatedAt, deleted: false, data: await encryptObj(val, id) };
+  S.plain[id] = { updatedAt, val };
+  S.pending.add(id); persist(); computeModel();
+}
+function removeEntry(id) {
+  S.rows[id] = { id, updatedAt: Date.now(), deleted: true, data: '' };
+  delete S.plain[id]; S.pending.add(id); persist(); computeModel();
+}
+
+/* ---------- Calculs du cycle ---------- */
+function computeModel() {
+  const byStart = new Map();
+  for (const [id, { updatedAt, val }] of Object.entries(S.plain)) {
+    if (!val || !val.start) continue;
+    const start = toNum(val.start), prev = byStart.get(start);
+    if (!prev || updatedAt > prev.updatedAt) byStart.set(start, {
+      id, updatedAt, start,
+      bleed: Math.max(1, Math.min(15, Number(val.bleed) || 5)),
+      flow: FLOW[val.flow] ? val.flow : 'moyen', pain: PAIN[val.pain] ? val.pain : 'aucune', note: val.note || ''
+    });
+  }
+  const cycles = [...byStart.values()].sort((a, b) => a.start - b.start);
+  const lens = [];
+  for (let i = 0; i < cycles.length - 1; i++) lens.push(cycles[i + 1].start - cycles[i].start);
+  const recent = lens.filter(l => l >= 15 && l <= 60).slice(-6);
+  const avgCycle = recent.length ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length) : 28;
+  const rb = cycles.slice(-6).map(c => c.bleed);
+  const avgBleed = rb.length ? Math.round(rb.reduce((a, b) => a + b, 0) / rb.length) : 5;
+  const today = todayNum(), last = cycles[cycles.length - 1] || null;
+  let expected = null, late = 0, bases = [];
+  if (last) {
+    expected = last.start + avgCycle;
+    late = Math.max(0, today - expected);
+    const first = Math.max(expected, today);
+    bases = [last.start];
+    for (let k = 0; k < 13; k++) bases.push(first + k * avgCycle);
+  }
+  S.M = { cycles, lens, recent, avgCycle, avgBleed, last, expected, late, bases, today };
+}
+
+const ovu = (d, o, p) => d === o ? { t: 'ovul', p } : (d >= o - 5 && d <= o + 1) ? { t: 'fertile', p } : null;
+
+function classify(d) {
+  const M = S.M, cs = M.cycles;
+  if (!cs.length) return null;
+  for (const c of cs) if (d >= c.start && d < c.start + c.bleed) return { t: 'period', p: false, c };
+  for (let i = 0; i < cs.length - 1; i++) {
+    const c = cs[i], next = cs[i + 1].start;
+    if (d >= c.start && d < next) return ovu(d, next - 14, false);
+  }
+  if (d < M.last.start) return null;
+  const B = M.bases;
+  for (let k = 1; k < B.length; k++) if (d >= B[k] && d < B[k] + M.avgBleed) return { t: 'period', p: true };
+  for (let k = 0; k < B.length - 1; k++) {
+    if (d >= B[k] && d < B[k + 1]) return ovu(d, k === 0 ? M.last.start + M.avgCycle - 14 : B[k + 1] - 14, true);
+  }
+  return null;
+}
+const LABEL = c => !c ? '' : c.t === 'period' ? (c.p ? 'règles prévues' : 'règles')
+  : c.t === 'ovul' ? (c.p ? 'ovulation estimée' : 'ovulation') : (c.p ? 'période fertile estimée' : 'période fertile');
+
+/* ---------- Affichage ---------- */
+function renderAll() { renderHero(); renderCal(); if (S.tab === 'stats') renderStats(); if (S.tab === 'set') renderSettings(); renderSync(); }
+
+function dialSvg(len, bleed, ovRel, todayRel, marker = true) {
+  const R = 100, C = 2 * Math.PI * R;
+  const seg = (a, b, col) => {
+    a = Math.max(0, a); b = Math.min(len, b); if (b <= a) return '';
+    return `<circle cx="120" cy="120" r="${R}" fill="none" stroke="${col}" stroke-width="16" stroke-linecap="round"
+      stroke-dasharray="${Math.max(0.1, (b - a) / len * C - 10)} ${C}" stroke-dashoffset="${-((a / len) * C + 5)}" transform="rotate(-90 120 120)"/>`;
+  };
+  const ang = (Math.min(todayRel, len) / len) * 2 * Math.PI - Math.PI / 2;
+  const x = 120 + R * Math.cos(ang), y = 120 + R * Math.sin(ang);
+  return `<svg class="dial" viewBox="0 0 240 240" aria-hidden="true">
+    <circle cx="120" cy="120" r="${R}" fill="none" stroke="var(--track)" stroke-width="16"/>
+    ${seg(0, bleed, 'var(--period)')}${seg(ovRel - 5, ovRel + 2, 'var(--fertile)')}${seg(ovRel, ovRel + 1, 'var(--ovul)')}
+    ${marker ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="var(--surface)" stroke="var(--ink)" stroke-width="3.5"/>` : ''}
+  </svg>`;
+}
+
+function renderHero() {
+  const M = S.M, t = M.today, hero = $('#hero');
+  if (!M.last) {
+    hero.className = 'hero hero-welcome';
+    hero.innerHTML = dialSvg(28, 0, -10, 0, false) + `<div class="hero-text"><div class="hero-big">Bienvenue</div><div class="hero-small">Choisissez dans le calendrier le premier jour de vos dernières règles.</div></div>`;
+    $('#hero-sub').textContent = '';
+    return;
+  }
+  hero.className = 'hero';
+  const day = t - M.last.start + 1, c = classify(t);
+  let big, small;
+  if (c && c.t === 'period' && !c.p) { big = `Jour ${t - c.c.start + 1}`; small = 'des règles'; }
+  else if (M.late > 0) { big = jours(M.late); small = 'de retard'; }
+  else {
+    const n = M.bases[1] - t;
+    if (n === 0) { big = 'Aujourd’hui'; small = 'règles prévues'; }
+    else { big = String(n); small = n > 1 ? 'jours avant les règles' : 'jour avant les règles'; }
+  }
+  const len = Math.max(M.avgCycle, day);
+  hero.innerHTML = dialSvg(len, M.last.bleed, M.avgCycle - 14, day - 0.5) +
+    `<div class="hero-text"><div class="hero-big">${esc(big)}</div><div class="hero-small">${esc(small)}</div></div>`;
+  let sub = `Jour ${day} du cycle`;
+  if (c && (c.t === 'ovul' || c.t === 'fertile')) sub += ` : ${LABEL(c)}`;
+  else if (!M.late && M.bases[1] > t) sub += `, prochaines règles vers le ${fmt(M.bases[1], { day: 'numeric', month: 'long' })}`;
+  $('#hero-sub').textContent = sub;
+}
+
+function renderCal() {
+  if (!S.month) { const d = new Date(S.sel * DAY); S.month = { y: d.getUTCFullYear(), m: d.getUTCMonth() }; }
+  const { y, m } = S.month, t = S.M.today;
+  const first = Math.round(Date.UTC(y, m, 1) / DAY);
+  const nDays = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const offset = (new Date(first * DAY).getUTCDay() + 6) % 7;
+  $('#month-title').textContent = fmt(first, { month: 'long', year: 'numeric' });
+  const tm = new Date(t * DAY);
+  $('#btn-today').hidden = (tm.getUTCFullYear() === y && tm.getUTCMonth() === m);
+  let h = '<span></span>'.repeat(offset);
+  for (let i = 0; i < nDays; i++) {
+    const d = first + i, c = classify(d);
+    let cl = 'd';
+    if (c) cl += ' ' + c.t + (c.p ? ' pred' : '');
+    if (d === t) cl += ' today';
+    if (d === S.sel) cl += ' sel';
+    if (d > t) cl += ' future';
+    const aria = fmt(d, { weekday: 'long', day: 'numeric', month: 'long' }) + (c ? ', ' + LABEL(c) : '') + (d === t ? ", aujourd’hui" : '');
+    h += `<button type="button" class="${cl}" data-d="${d}" aria-label="${esc(aria)}"${d === S.sel ? ' aria-pressed="true"' : ''}>${i + 1}</button>`;
+  }
+  $('#grid').innerHTML = h;
+
+  const d = S.sel, c = classify(d), btn = $('#btn-log');
+  $('#sel-info').textContent = fmt(d, { weekday: 'long', day: 'numeric', month: 'long' }) + (c ? ' : ' + LABEL(c) : '');
+  btn.disabled = false; btn.className = 'primary';
+  if (c && c.t === 'period' && !c.p) {
+    btn.textContent = `Modifier les règles du ${fmt(c.c.start, { day: 'numeric', month: 'long' })}`;
+    btn.className = 'secondary'; btn.dataset.id = c.c.id;
+  } else if (d > t) {
+    btn.textContent = 'Les dates futures ne peuvent pas être saisies'; btn.disabled = true; btn.dataset.id = '';
+  } else {
+    btn.textContent = `Noter le début des règles le ${fmt(d, { day: 'numeric', month: 'long' })}`; btn.dataset.id = '';
+  }
+}
+
+function tile(label, value, chip, cls) {
+  return `<div class="tile"><p class="l">${esc(label)}</p><p class="v">${esc(value)}</p>${chip ? `<span class="chip ${cls || ''}">${esc(chip)}</span>` : ''}</div>`;
+}
+
+function histItem(c, next, M) {
+  const len = next ? next - c.start : null;
+  const title = next ? jours(len) : 'Cycle en cours';
+  const dates = next ? `${fmt(c.start, { day: 'numeric', month: 'short' })} – ${fmt(next - 1, { day: 'numeric', month: 'short', year: 'numeric' })}`
+    : `Depuis le ${fmt(c.start, { day: 'numeric', month: 'long' })}`;
+  const total = next ? len : Math.max(1, M.today - c.start + 1);
+  const ov = next ? len - 14 : M.avgCycle - 14;
+  let dots = '';
+  for (let i = 0; i < Math.min(total, 60); i++) {
+    dots += i < c.bleed ? '<i class="p"></i>' : i === ov ? '<i class="o"></i>' : (i >= ov - 5 && i <= ov + 1) ? '<i class="f"></i>' : '<i></i>';
+  }
+  return `<div class="h-item"><div class="h-top"><span class="h-title">${title}</span>
+    <span class="chip">Douleur : ${esc(PAIN[c.pain])}</span></div>
+    <div class="h-dates">${dates}, règles ${jours(c.bleed)}, flux ${esc(FLOW[c.flow].toLowerCase())}</div>
+    <div class="dots">${dots}</div>${c.note ? `<p class="h-note">${esc(c.note)}</p>` : ''}</div>`;
+}
+
+function renderStats(all = false) {
+  const M = S.M, cs = M.cycles;
+  if (!cs.length) {
+    $('#tiles').innerHTML = ''; $('#chart').innerHTML = '<p class="empty">Aucune donnée pour l’instant.</p>';
+    $('#hist').innerHTML = '<p class="empty">Notez vos premières règles depuis le calendrier.</p>'; $('#btn-all').hidden = true; return;
+  }
+  const lastLen = M.lens[M.lens.length - 1], lastBleed = cs[cs.length - 1].bleed;
+  const varr = M.recent.length >= 2 ? Math.max(...M.recent) - Math.min(...M.recent) : null;
+  $('#tiles').innerHTML =
+    tile('Dernier cycle', lastLen ? jours(lastLen) : '–', lastLen ? (lastLen >= 21 && lastLen <= 35 ? 'Dans la norme' : 'Hors norme') : 'En attente', lastLen ? (lastLen >= 21 && lastLen <= 35 ? 'good' : 'warn') : '') +
+    tile('Dernières règles', jours(lastBleed), lastBleed >= 2 && lastBleed <= 7 ? 'Dans la norme' : 'Hors norme', lastBleed >= 2 && lastBleed <= 7 ? 'good' : 'warn') +
+    tile('Cycle moyen', M.recent.length ? jours(M.avgCycle) : '–', M.recent.length ? `sur ${M.recent.length} cycle${M.recent.length > 1 ? 's' : ''}` : 'En attente') +
+    tile('Variation', varr === null ? '–' : jours(varr), varr === null ? 'En attente' : varr <= 7 ? 'Régulier' : 'Irrégulier', varr === null ? '' : varr <= 7 ? 'good' : 'warn');
+  $('#chart').innerHTML = chartSvg(M.lens.slice(-12));
+  const rev = cs.map((c, i) => ({ c, next: cs[i + 1] ? cs[i + 1].start : null })).reverse();
+  const shown = all ? rev : rev.slice(0, 3);
+  $('#hist').innerHTML = shown.map(x => histItem(x.c, x.next, M)).join('');
+  $('#btn-all').hidden = rev.length <= 3;
+  $('#btn-all').textContent = all ? 'Réduire' : 'Tout voir';
+  $('#btn-all').dataset.all = all ? '1' : '';
+}
+
+function chartSvg(data) {
+  if (data.length < 2) return '<p class="empty">Le graphique apparaîtra après deux cycles complets.</p>';
+  const W = 320, H = 170, pl = 28, pr = 12, pt = 18, pb = 10, gw = W - pl - pr, gh = H - pt - pb;
+  const lo = Math.min(20, ...data) - 1, hi = Math.max(36, ...data) + 1;
+  const y = v => pt + gh - (v - lo) / (hi - lo) * gh, x = i => pl + i * gw / (data.length - 1);
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Durée des ${data.length} derniers cycles : ${data.join(', ')} jours">`;
+  s += `<rect x="${pl}" y="${y(35)}" width="${gw}" height="${y(21) - y(35)}" rx="6" fill="var(--fertile-soft)"/>`;
+  [21, 28, 35].forEach(v => s += `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text class="ax" x="${pl - 6}" y="${y(v) + 3.5}" text-anchor="end">${v}</text>`);
+  s += `<polyline fill="none" stroke="var(--ovul)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="${data.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ')}"/>`;
+  data.forEach((v, i) => {
+    const out = v < 21 || v > 35;
+    s += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="5" fill="${out ? 'var(--warn)' : 'var(--ovul)'}" stroke="var(--surface)" stroke-width="2"/>`;
+    s += `<text class="val" x="${x(i).toFixed(1)}" y="${(y(v) - 10).toFixed(1)}" text-anchor="middle">${v}</text>`;
+  });
+  return s + '</svg>';
+}
+
+function ago(ts) {
+  if (!ts) return 'jamais';
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return 'à l’instant'; if (m < 60) return `il y a ${m} min`;
+  return new Date(ts).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function renderSync() {
+  const pill = $('#sync-pill'), n = S.pending.size;
+  pill.className = 'sync' + (S.syncing ? ' busy' : S.error ? ' err' : n ? ' pending' : '');
+  $('#sync-text').textContent = S.syncing ? 'Synchronisation…' : S.error ? S.error : n ? `${n} en attente` : 'À jour';
+  if (S.tab === 'set') renderSettings();
+}
+function renderSettings() {
+  $('#sync-kv').innerHTML =
+    `<dt>Dernière synchro</dt><dd>${esc(ago(S.lastSync))}</dd>` +
+    `<dt>En attente d’envoi</dt><dd>${S.pending.size}</dd>` +
+    `<dt>Cycles enregistrés</dt><dd>${S.M.cycles.length}</dd>` +
+    (S.unreadable ? `<dt>Entrées illisibles</dt><dd>${S.unreadable} (autre mot de passe)</dd>` : '') +
+    (S.error ? `<dt>État</dt><dd>${esc(S.error)}</dd>` : '');
+  $('#version').textContent = `My Cycle ${VERSION}. Chiffrement AES-256 sur l’appareil.`;
+}
+
+/* ---------- Saisie ---------- */
+function segButtons(name, map) {
+  $(`.seg[data-name="${name}"]`).innerHTML = Object.entries(map)
+    .map(([k, v]) => `<button type="button" data-v="${k}" aria-pressed="${S.form[name] === k}">${v}</button>`).join('');
+}
+function openSheet(id) {
+  const c = id ? S.M.cycles.find(x => x.id === id) : null;
+  S.form = c ? { id: c.id, bleed: c.bleed, flow: c.flow, pain: c.pain }
+             : { id: null, bleed: S.M.avgBleed, flow: 'moyen', pain: 'aucune' };
+  $('#sheet-title').textContent = c ? 'Modifier les règles' : 'Nouvelles règles';
+  $('#f-start').value = toStr(c ? c.start : S.sel);
+  $('#f-start').max = toStr(S.M.today);
+  $('#f-bleed').textContent = S.form.bleed;
+  $('#f-note').value = c ? c.note : '';
+  $('#f-del').hidden = !c;
+  segButtons('flow', FLOW); segButtons('pain', PAIN);
+  $('#sheet').hidden = false;
+}
+const closeSheet = () => { $('#sheet').hidden = true; S.form = null; };
+
+async function saveForm(e) {
+  e.preventDefault();
+  const f = S.form, start = $('#f-start').value;
+  if (!start) return toast('Choisissez une date');
+  const sn = toNum(start);
+  if (sn > todayNum()) return toast('La date ne peut pas être dans le futur');
+  const id = f.id || newId();
+  const dup = S.M.cycles.find(c => c.start === sn && c.id !== id);
+  if (dup) removeEntry(dup.id);
+  await putEntry(id, { start: toStr(sn), bleed: f.bleed, flow: f.flow, pain: f.pain, note: $('#f-note').value.trim().slice(0, 500) });
+  closeSheet(); S.sel = sn; S.month = null; renderAll(); toast('Enregistré'); sync();
+}
+
+/* ---------- Divers ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 2600);
+}
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+function switchTab(tab) {
+  S.tab = tab;
+  document.querySelectorAll('nav button').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  ['cal', 'stats', 'set'].forEach(v => $('#view-' + v).hidden = v !== tab);
+  $('#main').scrollTop = 0;
+  if (tab === 'stats') renderStats(); if (tab === 'set') renderSettings();
+}
+
+async function importLegacy() {
+  const btn = $('#btn-legacy'); btn.disabled = true; btn.textContent = 'Import en cours…';
+  try {
+    const j = await api({ action: 'legacy', token: S.token });
+    const painMap = { None: 'aucune', Mild: 'legere', Moderate: 'moderee', Severe: 'forte' };
+    let added = 0;
+    for (const r of j.rows) {
+      const dt = new Date(r.start); if (isNaN(dt)) continue;
+      // l'ancienne app enregistrait minuit heure locale : on relit la date locale
+      const sn = Math.round(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()) / DAY);
+      if (S.M.cycles.some(c => c.start === sn)) continue;
+      await putEntry(newId(), { start: toStr(sn), bleed: Math.max(1, Math.min(15, r.bleed)), flow: 'moyen', pain: painMap[r.pain] || 'aucune', note: '' });
+      added++;
+    }
+    toast(j.rows.length ? `${added} cycle${added > 1 ? 's' : ''} importé${added > 1 ? 's' : ''}` : 'Aucun ancien onglet trouvé');
+    renderAll(); sync();
+  } catch (e) { toast('Import impossible : ' + (e.code === 'unauthorized' ? 'mot de passe refusé' : 'vérifiez la connexion')); }
+  btn.disabled = false; btn.textContent = 'Importer les anciens cycles';
+}
+
+async function exportData() {
+  const data = { app: 'My Cycle', version: VERSION, exportedAt: new Date().toISOString(),
+    cycles: S.M.cycles.map(c => ({ debut: toStr(c.start), dureeRegles: c.bleed, flux: FLOW[c.flow], douleur: PAIN[c.pain], note: c.note })) };
+  const name = `my-cycle-${toStr(todayNum())}.json`;
+  const file = new File([JSON.stringify(data, null, 2)], name, { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'Sauvegarde My Cycle' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+/* ---------- Connexion d'un téléphone ---------- */
+function showSetup() {
+  $('#app').hidden = true; $('#setup').hidden = false;
+  if (!isStandalone()) {
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const hint = $('#install-hint'); hint.hidden = false;
+    hint.textContent = ios
+      ? 'Installez d’abord l’app : dans Safari, touchez Partager puis « Sur l’écran d’accueil ». Ouvrez ensuite My Cycle depuis son icône et connectez-vous là.'
+      : 'Installez d’abord l’app : dans Chrome, menu ⋮ puis « Installer l’application ». Ouvrez ensuite My Cycle depuis son icône et connectez-vous là.';
+  }
+}
+async function onSetup(e) {
+  e.preventDefault();
+  const url = $('#s-url').value.trim(), p1 = $('#s-pass').value, p2 = $('#s-pass2').value;
+  const msg = (t, err) => { const m = $('#s-msg'); m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); };
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return msg('L’adresse doit commencer par https://script.google.com/macros/s/ et se terminer par /exec.', true);
+  if (p1.length < 10) return msg('Le mot de passe doit faire au moins 10 caractères.', true);
+  if (p1 !== p2) return msg('Les deux mots de passe ne sont pas identiques.', true);
+  const btn = $('#s-btn'); btn.disabled = true;
+  try {
+    msg('Connexion au script…');
+    const { salt } = await api({ action: 'salt' }, url);
+    msg('Création de la clé de chiffrement…');
+    const { key, raw, token } = await deriveKeys(p1, salt);
+    msg('Vérification du mot de passe…');
+    const j = await api({ action: 'sync', token, entries: [] }, url);
+    try { await kvSet('key', key); } catch { LS.set('kraw', b64(raw)); }
+    LS.set('cfg', { apiUrl: url, token });
+    Object.assign(S, { apiUrl: url, token, key, rows: {}, pending: new Set(), lastSync: Date.now() });
+    j.rows.forEach(r => S.rows[r.id] = r);
+    persist(); await rebuild();
+    startApp();
+    toast(j.initialized ? 'Mot de passe défini. Utilisez le même sur l’autre téléphone.' : 'Téléphone connecté');
+  } catch (err) {
+    msg(err.code === 'unauthorized'
+      ? 'Mot de passe incorrect : il ne correspond pas à celui choisi sur le premier téléphone.'
+      : 'Impossible de joindre le script. Vérifiez l’adresse, la connexion, et que l’accès du déploiement est réglé sur « Tout le monde ».', true);
+  }
+  btn.disabled = false;
+}
+
+let started = false;
+function startApp() {
+  $('#setup').hidden = true; $('#app').hidden = false;
+  renderAll();
+  if (started) return; started = true;
+  sync();
+  setInterval(() => { if (document.visibilityState === 'visible') sync(); }, 120000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (S.M.today !== todayNum()) { computeModel(); renderAll(); }
+    sync();
+  });
+  addEventListener('online', sync);
+}
+
+/* ---------- Évènements ---------- */
+$('#setup-form').addEventListener('submit', onSetup);
+$('#grid').addEventListener('click', e => {
+  const b = e.target.closest('[data-d]'); if (!b) return;
+  S.sel = Number(b.dataset.d); renderCal();
+});
+$('#btn-prev').onclick = () => { S.month.m--; if (S.month.m < 0) { S.month.m = 11; S.month.y--; } renderCal(); };
+$('#btn-next').onclick = () => { S.month.m++; if (S.month.m > 11) { S.month.m = 0; S.month.y++; } renderCal(); };
+$('#btn-today').onclick = () => { S.sel = todayNum(); S.month = null; renderCal(); };
+$('#btn-log').onclick = e => openSheet(e.currentTarget.dataset.id || null);
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+$('#sync-pill').onclick = sync;
+$('#btn-sync').onclick = sync;
+$('#btn-all').onclick = e => renderStats(!e.currentTarget.dataset.all);
+$('#btn-legacy').onclick = importLegacy;
+$('#btn-export').onclick = exportData;
+$('#btn-forget').onclick = async () => {
+  if (!confirm('Oublier ce téléphone ? Il faudra ressaisir l’adresse et le mot de passe.')) return;
+  LS.clear(); try { await kvClear(); } catch {} location.reload();
+};
+$('#form').addEventListener('submit', saveForm);
+$('#sheet').addEventListener('click', e => {
+  if (e.target === e.currentTarget || e.target.closest('[data-close]')) return closeSheet();
+  const step = e.target.closest('[data-step]');
+  if (step) { S.form.bleed = Math.max(1, Math.min(15, S.form.bleed + Number(step.dataset.step))); $('#f-bleed').textContent = S.form.bleed; return; }
+  const sb = e.target.closest('.seg button');
+  if (sb) { const name = sb.parentElement.dataset.name; S.form[name] = sb.dataset.v; segButtons(name, name === 'flow' ? FLOW : PAIN); }
+});
+$('#f-del').onclick = () => {
+  if (!confirm('Supprimer ces règles ? La suppression s’appliquera aussi sur l’autre téléphone.')) return;
+  removeEntry(S.form.id); closeSheet(); renderAll(); toast('Supprimé'); sync();
+};
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
+
+/* ---------- Démarrage ---------- */
+(async function boot() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (!window.crypto || !crypto.subtle) { document.body.innerHTML = '<p style="padding:40px">Ouvrez l’app via son adresse https (GitHub Pages).</p>'; return; }
+  const cfg = LS.get('cfg', null);
+  let key = null;
+  try { key = await kvGet('key'); } catch {}
+  if (!key && LS.get('kraw', null)) { try { key = await importAes(unb64(LS.get('kraw'))); } catch {} }
+  if (!cfg || !key) { computeModel(); return showSetup(); }
+  Object.assign(S, { apiUrl: cfg.apiUrl, token: cfg.token, key, rows: LS.get('rows', {}), pending: new Set(LS.get('pending', [])), lastSync: LS.get('lastSync', 0) });
+  await rebuild();
+  startApp();
+})();
+</script>
+</body>
+</html>
